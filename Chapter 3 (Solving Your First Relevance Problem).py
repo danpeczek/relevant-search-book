@@ -1,18 +1,7 @@
-import requests
+from tqdm import tqdm
 import json
 import logging
-import numpy as np
-from itertools import islice
 from elasticsearch import Elasticsearch
-
-# Optional, enable client-side caching for TMDB
-# Requires: https://httpcache.readthedocs.org/en/latest/
-#from httpcache import CachingHTTPAdapter
-#tmdb_api.mount('https://', CachingHTTPAdapter())
-#tmdb_api.mount('http://', CachingHTTPAdapter())
-
-# Some utilities for flattening the explain into something a bit more
-# readable. Pass Explain JSON, get something readable (ironically this is what Solr's default output is :-p)
 
 
 def flatten(l):
@@ -34,34 +23,46 @@ def extract():
     return {}
 
 
-def reindex(elastic_search: Elasticsearch, analysis_settings={}, mapping_settings={}, movie_dict={}):
-    # settings = { #A
-    #     "settings": {
-    #         "number_of_shards": 1, #B
-    #         "index": {
-    #             "analysis" : analysis_settings, #C
-    #         }}}
-    #
-    # if mapping_settings:
-    #     settings['mappings'] = mapping_settings #C
+def reindex(elastic_search: Elasticsearch, movie_dict={}):
 
-    bulkMovies = ""
     logging.info("building...")
-    for id, movie in movie_dict.items():
+    for movie_id, movie in tqdm(movie_dict.items()):
         doc = {
-            '_id': movie["id"],
-            '_title': movie["title"]
+            'movie_id': movie["id"],
+            'movie_title': movie["title"]
         }
-        elastic_search.index(index="tmdb", id=id, document=doc)
+        elastic_search.index(index="tmdb", id=movie_id, document=doc)
 
     logging.info("indexing...")
-    # resp = requests.post("https://localhost:9200/_bulk", data=bulkMovies)
 
 
 def main():
     movie_dict = extract()
-    es = Elasticsearch("http://localhost:9200")
-    reindex(elastic_search=es, movie_dict=movie_dict)
+    # Authenticate from the constructor
+    es = Elasticsearch(
+        "https://localhost:9200",
+        ca_certs="/home/peczek/Programs/elasticsearch-8.7.1/config/certs/http_ca.crt",
+        basic_auth=("elastic", "RXW*2QC=dceb-JR=vnEc")
+    )
+
+    # reindex(elastic_search=es, movie_dict=movie_dict)
+    resp = es.get(index="tmdb", id="93837")
+    print(resp['_source'])
+
+    query = {
+            "match_all": {}
+    }
+
+    query2 = {
+        "multi_match": {
+            "query": "basketball with cartoon aliens",
+            "fields": "movie_title"
+        }
+    }
+    resp = es.search(index="tmdb", query=query2)
+    print(f"Got {resp['hits']['total']['value']} Hits:")
+    for hit in resp['hits']['hits']:
+        print(f"""{hit['_source']['movie_title']} score: {hit['_score']}""")
 
 
 if __name__ == "__main__":
