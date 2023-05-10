@@ -23,17 +23,25 @@ def extract():
     return {}
 
 
+#Add english analyzer for the title and overview
 def reindex(elastic_search: Elasticsearch, movie_dict={}):
 
     logging.info("building...")
     for movie_id, movie in tqdm(movie_dict.items()):
         doc = {
             'movie_id': movie["id"],
-            'movie_title': movie["title"]
+            'movie_title': movie["title"],
+            'movie_overview': movie["overview"]
         }
         elastic_search.index(index="tmdb", id=movie_id, document=doc)
 
     logging.info("indexing...")
+
+
+def print_query_results(query_response):
+    print(f"Got {query_response['hits']['total']['value']} Hits:")
+    for hit in query_response['hits']['hits']:
+        print(f"""{hit['_source']['movie_title']} score: {hit['_score']}""")
 
 
 def main():
@@ -45,24 +53,23 @@ def main():
         basic_auth=("elastic", "RXW*2QC=dceb-JR=vnEc")
     )
 
-    # reindex(elastic_search=es, movie_dict=movie_dict)
-    resp = es.get(index="tmdb", id="93837")
-    print(resp['_source'])
+    if not es.indices.exists(index="tmdb"):
+        reindex(elastic_search=es, movie_dict=movie_dict)
 
+    query_string = "basketball with cartoon aliens"
     query = {
-            "match_all": {}
-    }
-
-    query2 = {
         "multi_match": {
-            "query": "basketball with cartoon aliens",
-            "fields": "movie_title"
+            "query": query_string,
+            "fields": ["movie_title^10", "movie_overview"]
         }
     }
-    resp = es.search(index="tmdb", query=query2)
-    print(f"Got {resp['hits']['total']['value']} Hits:")
-    for hit in resp['hits']['hits']:
-        print(f"""{hit['_source']['movie_title']} score: {hit['_score']}""")
+    print("Normal Query")
+    resp = es.search(index="tmdb", query=query, from_=30)
+    print_query_results(resp)
+    print()
+    print("Query With Analyzer")
+    resp = es.search(index="tmdb", analyzer="standard", q=query_string)
+    print_query_results(resp)
 
 
 if __name__ == "__main__":
