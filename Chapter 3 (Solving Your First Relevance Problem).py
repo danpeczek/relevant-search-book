@@ -42,6 +42,12 @@ def print_query_results(query_response):
     print(f"Got {query_response['hits']['total']['value']} Hits:")
     for hit in query_response['hits']['hits']:
         print(f"""{hit['_source']['movie_title']} score: {hit['_score']}""")
+        # Uncomment to see explanation for each hit
+        # if "_explanation" in hit.keys():
+        #     if hit['_source']['movie_title'] == "Aliens" or hit['_source']['movie_title'] == "Space Jam":
+        #         for detail in hit['_explanation']["details"]:
+        #             print(json.dumps(detail["details"], indent=True))
+
 
 
 def main():
@@ -56,6 +62,7 @@ def main():
     if not es.indices.exists(index="tmdb"):
         reindex(elastic_search=es, movie_dict=movie_dict)
 
+    #TODO how to add some analyzer for the fields instead of making a query?
     query_string = "basketball with cartoon aliens"
     query = {
         "multi_match": {
@@ -63,12 +70,21 @@ def main():
             "fields": ["movie_title^10", "movie_overview"]
         }
     }
+
+    query_lower_title = {
+        "multi_match": {
+            "query": query_string,
+            "fields": ["movie_title^0.1", "movie_overview"]
+        }
+    }
     print("Normal Query")
-    resp = es.search(index="tmdb", query=query, from_=30)
+    resp = es.search(index="tmdb", query=query, from_=30, explain=True)
     print_query_results(resp)
     print()
     print("Query With Analyzer")
-    resp = es.search(index="tmdb", analyzer="standard", q=query_string)
+    resp = es.search(index="tmdb", analyzer="standard", q=query_string, explain=True)
+    print_query_results(resp)
+    resp = es.search(index="tmdb", analyzer="standard", q=query_string, query=query_lower_title, explain=True)
     print_query_results(resp)
 
 
