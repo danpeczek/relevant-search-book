@@ -23,7 +23,6 @@ def extract():
     return {}
 
 
-#Add english analyzer for the title and overview
 def reindex(elastic_search: Elasticsearch, movie_dict={}):
 
     logging.info("building...")
@@ -38,16 +37,16 @@ def reindex(elastic_search: Elasticsearch, movie_dict={}):
     logging.info("indexing...")
 
 
-def print_query_results(query_response):
+def print_query_results(query_response, explain=False):
     print(f"Got {query_response['hits']['total']['value']} Hits:")
+    num = 1
     for hit in query_response['hits']['hits']:
-        print(f"""{hit['_source']['movie_title']} score: {hit['_score']}""")
+        print(f"""{num}: {hit['_source']['movie_title']} score: {hit['_score']}""")
+        num+=1
         # Uncomment to see explanation for each hit
-        # if "_explanation" in hit.keys():
-        #     if hit['_source']['movie_title'] == "Aliens" or hit['_source']['movie_title'] == "Space Jam":
-        #         for detail in hit['_explanation']["details"]:
-        #             print(json.dumps(detail["details"], indent=True))
-
+        if "_explanation" in hit.keys() and explain:
+            for detail in hit['_explanation']["details"]:
+                print(json.dumps(detail["details"], indent=True))
 
 
 def main():
@@ -59,11 +58,31 @@ def main():
         basic_auth=("elastic", "RXW*2QC=dceb-JR=vnEc")
     )
 
+    mapping_settings = {
+        "properties": {
+            "movie_title": {
+                "type": "text",
+                "analyzer": "english"
+            },
+            "movie_overview": {
+                "type": "text",
+                "analyzer": "english"
+            }
+        }
+    }
+
+    settings = {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    }
+
+    # es.indices.delete(index="tmdb")
     if not es.indices.exists(index="tmdb"):
+        es.indices.create(index="tmdb", mappings=mapping_settings, settings=settings)
         reindex(elastic_search=es, movie_dict=movie_dict)
 
-    #TODO how to add some analyzer for the fields instead of making a query?
     query_string = "basketball with cartoon aliens"
+
     query = {
         "multi_match": {
             "query": query_string,
@@ -81,11 +100,9 @@ def main():
     resp = es.search(index="tmdb", query=query, from_=30, explain=True)
     print_query_results(resp)
     print()
-    print("Query With Analyzer")
-    resp = es.search(index="tmdb", analyzer="standard", q=query_string, explain=True)
-    print_query_results(resp)
-    resp = es.search(index="tmdb", analyzer="standard", q=query_string, query=query_lower_title, explain=True)
-    print_query_results(resp)
+    print("Query with title smaller")
+    resp = es.search(index="tmdb", query=query_lower_title, explain=True)
+    print_query_results(resp, explain=False)
 
 
 if __name__ == "__main__":
