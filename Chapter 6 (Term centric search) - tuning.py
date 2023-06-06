@@ -140,7 +140,7 @@ def main():
 
     query = {
         "match": {
-            "people.name": "patric steward william shatner"
+            "people.name": "star trek patrick steward william shatner"
         }
     }
 
@@ -149,7 +149,7 @@ def main():
 
     query_match_all = {
         "match": {
-            "_all": "star trek patric steward william shatner"
+            "_all": "star trek patrick steward william shatner"
         }
     }
     resp = es.search(index="tmdb", query=query_match_all, explain=True, size=5)
@@ -157,12 +157,22 @@ def main():
 
     query_cross_fields = {
         "multi_match": {
-            "query": "star trek patric steward william shatner",
+            "query": "star trek patrick steward william shatner",
             "fields": ["title", "overview", "cast.name", "directors.name"],
             "type": "cross_fields"
         }
     }
     resp = es.search(index="tmdb", query=query_cross_fields, explain=True, size=5)
+    print_query_results(resp, explain=False)
+
+    query_people_most_fields = {
+        "multi_match": {
+            "query": "star trek patrick steward william shatner",
+            "fields": ["title", "overview", "people.name"],
+            "type": "most_fields"
+        }
+    }
+    resp = es.search(index="tmdb", query=query_people_most_fields, explain=True, size=5)
     print_query_results(resp, explain=False)
 
 
