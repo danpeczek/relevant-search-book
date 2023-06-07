@@ -175,6 +175,21 @@ def main():
     resp = es.search(index="tmdb", query=query_people_most_fields, explain=True, size=5)
     print_query_results(resp, explain=False)
 
+    query_cross_fields_multi_fields = {
+        "multi_match": {
+            "query": "star trek patrick steward william shatner",
+            "fields": ["directors.name.bigrammed", "cast.name.bigrammed"],
+            "type": "cross_fields"
+        },
+        "multi_match": {
+            "query": "star trek patrick steward william shatner",
+            "fields": ["title", "overview", "cast.name", "directors.name"],
+            "type": "cross_fields"
+        }
+    }
+    resp = es.search(index="tmdb", query=query_cross_fields_multi_fields, explain=True, size=5)
+    print_query_results(resp, explain=False)
+
 
 if __name__ == "__main__":
     main()
